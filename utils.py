@@ -1,0 +1,53 @@
+import torch
+import torch.nn.functional as F
+
+def cosine_beta_schedule(timesteps, s=0.008):
+    steps = timesteps + 1
+    x = torch.linspace(0, timesteps, steps) / timesteps
+    alphas_cumprod = torch.cos((x + s) / (1 + s) * torch.pi / 2) ** 2
+    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+    return torch.clamp(betas, 0.0001, 0.999)
+
+def extract(a, t, x_shape):
+    """ Extract t-indexed coefficients from precomputed arrays. """
+    a = a.to(t.device)
+    out = a.gather(-1, t)
+    return out.view(-1, 1, 1, 1).expand(x_shape)
+
+@torch.no_grad()
+def p_sample(model, x, t, y):
+    beta_t = extract(betas, t, x.shape)
+    sqrt_one_minus_alphas_cumprod_t = extract((1 - alphas_cumprod).sqrt(), t, x.shape)
+    sqrt_recip_alphas_t = extract((1.0 / alphas).sqrt(), t, x.shape)
+
+    pred_noise = model(x, t, y)
+    model_mean = sqrt_recip_alphas_t * (x - beta_t / sqrt_one_minus_alphas_cumprod_t * pred_noise)
+
+    if t[0] == 0:
+        return model_mean
+    noise = torch.randn_like(x)
+    posterior_variance_t = extract(betas, t, x.shape)
+    return model_mean + torch.sqrt(posterior_variance_t) * noise
+
+@torch.no_grad()
+def sample_ddpm(model, shape, label, device):
+    model.eval()
+    x = torch.randn(shape, device=device)
+    y = torch.full((shape[0],), label, device=device, dtype=torch.long)
+
+    for t_ in reversed(range(T)):
+        t = torch.full((shape[0],), t_, device=device, dtype=torch.long)
+        x = p_sample(model, x, t, y)
+    return x
+
+def q_sample(x_0, t, noise, alpha_bars):
+    """x_t = sqrt(alpha_bar) * x_0 + sqrt(1 - alpha_bar) * noise"""
+    alpha_bar_t = alpha_bars[t].view(-1, 1, 1, 1).to(x_0.device)
+    return torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * noise
+
+def diffusion_loss(model, x_0, t, y):
+    noise = torch.randn_like(x_0)           
+    x_noisy = q_sample(x_0, t, noise)    
+    noise_pred = model(x_noisy, t, y)         
+    return F.mse_loss(noise_pred, noise) 

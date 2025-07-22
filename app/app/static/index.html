@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DDPM Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        select, button { font-size: 18px; margin: 10px; padding: 8px 16px; }
+        img { margin-top: 20px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Generate Image by Label</h1>
+    <select id="label">
+        <option value="0">Class 0</option>
+        <option value="1">Class 1</option>
+        <option value="2">Class 2</option>
+        <option value="3">Class 3</option>
+        <option value="4">Class 4</option>
+    </select>
+    <button onclick="generate()">Generate</button>
+    <div><img id="output" width="256"/></div>
+    <script>
+        async function generate() {
+            const label = document.getElementById("label").value;
+            const response = await fetch("/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ label: parseInt(label) })
+            });
+            const data = await response.json();
+            document.getElementById("output").src = "data:image/png;base64," + data.image;
+        }
+    </script>
+</body>
+</html>
