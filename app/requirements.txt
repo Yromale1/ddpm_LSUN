@@ -3,3 +3,7 @@ flask
 numpy
 pillow
 torchvision
+lmdb
+tqdm
+matplotlib
+huggingface_hub

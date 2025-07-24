@@ -49,14 +49,31 @@ def p_sample(model, x, t, y):
 @torch.no_grad()
 def sample_ddpm(model, shape, label, device):
     model.eval()
-    x = torch.randn(shape, device=device)
-    y = torch.full((shape[0],), label, device=device, dtype=torch.long)
+    T = 1000
+    betas = torch.linspace(1e-4, 0.02, T).to(device)
+    alphas = 1.0 - betas
+    alpha_bars = torch.cumprod(alphas, dim=0)
+    x_t = torch.randn(shape).to(device)
+    y_label = torch.tensor([label], device=device)
 
-    for t_ in reversed(range(T)):
-        t = torch.full((shape[0],), t_, device=device, dtype=torch.long)
-        x = p_sample(model, x, t, y)
-    return x
+    for t_inv in reversed(range(T)):
+        t = torch.full((1,), t_inv, device=device, dtype=torch.long)
+        eps_theta = model(x_t, t, y_label)
 
+        beta_t = betas[t_inv]
+        alpha_t = alphas[t_inv]
+        alpha_bar_t = alpha_bars[t_inv]
+
+        noise = torch.randn_like(x_t) if t_inv > 0 else torch.zeros_like(x_t)
+
+        x_t = (1 / torch.sqrt(alpha_t)) * (
+            x_t - ((1 - alpha_t) / torch.sqrt(1 - alpha_bar_t)) * eps_theta
+        ) + torch.sqrt(beta_t) * noise
+
+    img = x_t.clamp(-1, 1) * 0.5 + 0.5
+    return img
+
+                   
 def tensor_to_base64_img(tensor):
     # Suppose tensor shape: (1, 1, 64, 64) ou (1, 3, 64, 64)
     tensor = tensor.squeeze(0).cpu().clamp(0, 1)  # shape: (C, H, W)
