@@ -10,6 +10,9 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY app/ .
 
+COPY startup.sh .
+RUN chmod +x startup.sh
+
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["./startup.sh"]
