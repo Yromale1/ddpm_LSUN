@@ -1,10 +1,10 @@
 #!/bin/bash
 
 set -e
-MODEL_FILE="${MODEL_FILE:-checkpoint_epoch_100.pth}"
+MODEL_FILE="${MODEL_FILE:-checkpoint_epoch_50.pth}"
 MODEL_DIR="models"
 MODEL_PATH="${MODEL_DIR}/${MODEL_FILE}"
-MODEL_URL="https://huggingface.co/<username>/<repo>/resolve/main/${MODEL_PATH}"
+MODEL_URL="https://huggingface.co/Yromale/ddpm/resolve/main/${MODEL_FILE}"
 
 mkdir -p "$MODEL_DIR"
 
