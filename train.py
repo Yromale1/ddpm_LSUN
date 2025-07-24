@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn.functional as F
 import torchvision.utils as vutils
+from tqdm import tqdm
 
 from utils import q_sample
 
@@ -21,7 +22,9 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
     for epoch in range(epochs):
         model.train()
         total_loss = 0
-        for x, y in dataloader:
+
+        progress_bar = tqdm(dataloader, desc=f"[Epoch {epoch+1}/{epochs}]")
+        for x, y in progress_bar:
             x = x.to(device)
             y = y.to(device)
             B = x.size(0)
@@ -43,18 +46,16 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
             scheduler.step()
             total_loss += loss.item()
 
+            progress_bar.set_postfix(loss=loss.item())
+
         avg_train_loss = total_loss / len(dataloader)
         loss_history.append(avg_train_loss)
 
-        # print(f"Epoch {epoch+1}/{epochs} - Training Loss: {avg_train_loss:.4f}")
-
         if (epoch + 1) % save_every == 0:
-
-            # ---- Validation step ----
             model.eval()
             val_loss = 0
             with torch.no_grad():
-                for x_val, y_val in validation_dataloader:
+                for x_val, y_val in tqdm(validation_dataloader, desc="Validation"):
                     x_val = x_val.to(device)
                     y_val = y_val.to(device)
                     B = x_val.size(0)
@@ -69,7 +70,7 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
             avg_val_loss = val_loss / len(validation_dataloader.dataset)
             print(f"Validation Loss: {avg_val_loss:.4f}")
 
-            # ---- Save checkpoint ----
+            # Checkpoint
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -79,7 +80,7 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
             }, f"./models/checkpoint_epoch_{epoch + 1}.pth")
             print(f"Saved checkpoint at epoch {epoch + 1}")
 
-            # ---- Generate sample images ----
+            # Sampling
             with torch.no_grad():
                 img_size = x.shape[-1]
                 for label in range(len(validation_dataloader.dataset.classes)):
@@ -94,16 +95,12 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
                         alpha_t = alphas[t_inv]
                         alpha_bar_t = alpha_bars[t_inv]
 
-                        if t_inv > 0:
-                            noise = torch.randn_like(x_t)
-                        else:
-                            noise = torch.zeros_like(x_t)
+                        noise = torch.randn_like(x_t) if t_inv > 0 else torch.zeros_like(x_t)
 
                         x_t = (1 / torch.sqrt(alpha_t)) * (
                             x_t - ((1 - alpha_t) / torch.sqrt(1 - alpha_bar_t)) * eps_theta
                         ) + torch.sqrt(beta_t) * noise
 
-                    # Rescale to [0, 1] and save
                     img = x_t.clamp(-1, 1) * 0.5 + 0.5
                     vutils.save_image(img, f"./samples/epoch_{epoch+1}_label_{label}.png")
 
