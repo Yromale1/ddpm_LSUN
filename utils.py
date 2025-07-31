@@ -46,8 +46,63 @@ def q_sample(x_0, t, noise, alpha_bars):
     alpha_bar_t = alpha_bars[t].view(-1, 1, 1, 1).to(x_0.device)
     return torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * noise
 
-def diffusion_loss(model, x_0, t, y):
-    noise = torch.randn_like(x_0)           
-    x_noisy = q_sample(x_0, t, noise)    
-    noise_pred = model(x_noisy, t, y)         
-    return F.mse_loss(noise_pred, noise) 
+@torch.no_grad()
+def ddim_sample(model, y_label, img_size, T=250, ddim_steps=50, eta=0.0, device="cuda",alpha_bars=None):
+    x_t = torch.randn(1, 3, img_size, img_size).to(device)
+    times = torch.linspace(T - 1, 0, ddim_steps, dtype=torch.long).to(device)
+
+    for i in range(len(times) - 1):
+        t = times[i].unsqueeze(0)
+        t_next = times[i + 1].unsqueeze(0)
+
+        eps = model(x_t, t, y_label)
+
+        alpha_bar_t = alpha_bars[t].view(-1, 1, 1, 1)
+        alpha_bar_next = alpha_bars[t_next].view(-1, 1, 1, 1)
+
+        x0_pred = (x_t - torch.sqrt(1 - alpha_bar_t) * eps) / torch.sqrt(alpha_bar_t)
+        sigma = eta * torch.sqrt((1 - alpha_bar_t / alpha_bar_next) * (1 - alpha_bar_next) / (1 - alpha_bar_t))
+        noise = torch.randn_like(x_t) if eta > 0 else 0
+
+        x_t = (
+            torch.sqrt(alpha_bar_next) * x0_pred +
+            torch.sqrt(1 - alpha_bar_next - sigma ** 2) * eps +
+            sigma * noise
+        )
+
+    return x_t
+
+def vlb_loss(x_0, x_t, t, pred_noise, alpha_bars, betas):
+    alphas = 1. - betas
+    x_shape = x_0.shape
+
+    sqrt_recip_alpha = extract(torch.sqrt(1. / alphas), t, x_shape)
+    sqrt_recipm1_alpha_bar = extract(torch.sqrt(1. / alpha_bars - 1), t, x_shape)
+    
+    safe_t_prev = (t - 1).clamp(min=0)
+    alpha_bar_prev = extract(alpha_bars, safe_t_prev, x_shape)
+
+    posterior_mean = (
+        torch.sqrt(alpha_bar_prev) * x_0 +
+        torch.sqrt(1. - alpha_bar_prev) * pred_noise
+    )
+
+    model_mean = (1. / sqrt_recip_alpha) * (
+        x_t - sqrt_recipm1_alpha_bar * pred_noise
+    )
+
+    # KL divergence approx: MSE between means
+    kl = F.mse_loss(model_mean, posterior_mean, reduction='none')
+    return kl.mean()
+
+def diffusion_loss(model, x_0, t, y, alpha_bars, betas, vlb_weight=0.001):
+    noise = torch.randn_like(x_0)
+    x_noisy = q_sample(x_0, t, noise, alpha_bars)
+    noise_pred = model(x_noisy, t, y)
+
+    mse = F.mse_loss(noise_pred, noise)
+
+    with torch.no_grad():
+        vlb = vlb_loss(x_0, x_noisy, t, noise_pred, alpha_bars, betas)
+
+    return mse + vlb_weight * vlb
