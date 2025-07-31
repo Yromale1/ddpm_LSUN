@@ -3,3 +3,8 @@ flask
 numpy
 pillow
 torchvision
+lmdb
+tqdm
+matplotlib
+lpips
+imageio
