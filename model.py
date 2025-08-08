@@ -32,9 +32,14 @@ class FiLM(nn.Module):
     def __init__(self, cond_dim, channels):
         super().__init__()
         self.fc = nn.Linear(cond_dim, channels * 2)
+        self.norm = nn.LayerNorm(channels * 2)
 
     def forward(self, x, cond):
-        gamma, beta = self.fc(cond).chunk(2, dim=1)
+        out = self.fc(cond)
+        out = self.norm(out)
+        gamma, beta = out.chunk(2, dim=1)
+        gamma = torch.tanh(gamma)
+        beta = torch.tanh(beta)
         gamma = gamma.unsqueeze(-1).unsqueeze(-1)
         beta = beta.unsqueeze(-1).unsqueeze(-1)
         return x * (1 + gamma) + beta
@@ -116,18 +121,18 @@ class UpBlock(nn.Module):
         return x
 
 class ConditionalUNet(nn.Module):
-    def __init__(self, input_c=3, base_c=128, cond_dim=128, n_classes=5):
+    def __init__(self, input_c=3, base_c=64, cond_dim=128, n_classes=6):
         super().__init__()
         self.label_embed = nn.Embedding(n_classes, cond_dim)
         self.time_embed = TimeMLP(cond_dim)
 
         self.init_conv = nn.Conv2d(input_c, base_c, 3, padding=1)
 
-        self.down1 = DownBlock(base_c, base_c, cond_dim)           # 128 → 64
-        self.down2 = DownBlock(base_c, base_c * 2, cond_dim)       # 64 → 32
-        self.down3 = DownBlock(base_c * 2, base_c * 4, cond_dim, use_attention=True)  # 32 → 16
-        self.down4 = DownBlock(base_c * 4, base_c * 8, cond_dim, use_attention=True)  # 16 → 8
-        self.down5 = DownBlock(base_c * 8, base_c * 16, cond_dim)  # 8 → 4
+        self.down1 = DownBlock(base_c, base_c, cond_dim)         
+        self.down2 = DownBlock(base_c, base_c * 2, cond_dim)    
+        self.down3 = DownBlock(base_c * 2, base_c * 4, cond_dim, use_attention=True) 
+        self.down4 = DownBlock(base_c * 4, base_c * 8, cond_dim, use_attention=True)
+        self.down5 = DownBlock(base_c * 8, base_c * 16, cond_dim)
 
         self.bottleneck = ResidualBlock(base_c * 16, base_c * 16, cond_dim)
         self.bottleneck2 = ResidualBlock(base_c * 16, base_c * 16, cond_dim)
@@ -142,6 +147,7 @@ class ConditionalUNet(nn.Module):
         self.final_conv = nn.Conv2d(base_c, input_c, 1)
 
     def forward(self, x, t, y):
+        t = t.clamp(min=0, max=1000)
         time_emb = self.time_embed(t)
         if y is not None:
             label_emb = self.label_embed(y)
