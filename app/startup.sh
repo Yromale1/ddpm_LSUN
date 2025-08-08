@@ -10,8 +10,8 @@ mkdir -p "$MODEL_DIR"
 
 if [ ! -f "$MODEL_PATH" ]; then
     if [ -z "$HF_TOKEN" ]; then
-        echo "No rights to access the model"
-        exit 1
+        echo "No token provided -> assuming the model is public"
+        curl -L "$MODEL_URL" -o "$MODEL_PATH"
     else
         echo "Download model"
         curl -L -H "Authorization: Bearer $HF_TOKEN" "$MODEL_URL" -o "$MODEL_PATH"
