@@ -13,8 +13,8 @@ def extract(a, t, x_shape):
 def sample_ddpm(model, shape, label, device):
     model.eval()
     T = 1000
-    betas = torch.linspace(1e-4, 0.02, T).to(device)
-    alphas = 1.0 - betas
+    betas = torch.linspace(1e-4**0.5, 0.02**0.5, T, device=device) ** 2
+    alphas = 1. - betas
     alpha_bars = torch.cumprod(alphas, dim=0)
     x_t = torch.randn(shape).to(device)
     y_label = torch.tensor([label], device=device)
