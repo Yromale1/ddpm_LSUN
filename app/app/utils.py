@@ -48,3 +48,9 @@ def tensor_to_base64_img(tensor):
     buffer.seek(0)
     img_str = base64.b64encode(buffer.read()).decode('utf-8')
     return img_str
+
+def init_weights(m):
+    if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.ConvTranspose2d):
+        torch.nn.init.kaiming_normal_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.zeros_(m.bias)
