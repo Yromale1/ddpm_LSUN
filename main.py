@@ -4,9 +4,9 @@ import argparse
 import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from torchvision.datasets import MNIST
 import matplotlib.pyplot as plt
 
-from dataset import MultiLMDBDataset
 from model import ConditionalUNet
 from train import train_ddpm
 from utils import init_weights
@@ -14,15 +14,15 @@ from utils import init_weights
 def main():
     
     # ───────────── ARGUMENT PARSER ─────────────
-    parser = argparse.ArgumentParser(description="Train Conditional DDPM on LSUN")
+    parser = argparse.ArgumentParser(description="Train Conditional DDPM on MNIST")
 
     parser.add_argument("--checkpoint", type=str, default=None, help="Path of the last checkpoint to resume training")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training and validation")
+    parser.add_argument("--batch_size", type=int, default=128, help="Batch size for training and validation")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--epochs", type=int, default=200, help="Number of training epochs")
     parser.add_argument("--save_every", type=int, default=10, help="Model checkpoint save interval (in epochs)")
-    parser.add_argument("--image_size", type=int, default=128, help="Image size for resizing")
-    parser.add_argument("--data_root", type=str, default="./data/scenes", help="Root directory for LSUN dataset")
+    parser.add_argument("--image_size", type=int, default=28, help="Image size for resizing")
+    parser.add_argument("--data_root", type=str, default="./data/mnist", help="Root directory for MNIST dataset")
 
     args = parser.parse_args()
 
@@ -33,15 +33,14 @@ def main():
     # ───────────── TRANSFORMATIONS ─────────────
     transform = transforms.Compose([
         transforms.Resize(args.image_size),
-        transforms.CenterCrop(args.image_size),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize(mean=[0.5], std=[0.5]) 
     ])
 
     start = datetime.datetime.now()
     # ───────────── DATASETS ─────────────
-    train_dataset = MultiLMDBDataset(root_dir=args.data_root, split="train", max_per_class=10000, transform=transform)
-    val_dataset = MultiLMDBDataset(root_dir=args.data_root, split="val", transform=transform)
+    train_dataset = MNIST(root=args.data_root, train=True, download=True, transform=transform)
+    val_dataset = MNIST(root=args.data_root, train=False, download=True, transform=transform)
     
     num_classes = len(train_dataset.classes)
     print(f"Nombre de classes détectées : {num_classes}")
@@ -52,15 +51,10 @@ def main():
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=16, pin_memory=True, drop_last=True)
     validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=16, pin_memory=True, drop_last=True)
-    
-    all_labels = [class_idx for _, _, class_idx in train_dataset.samples]
-    max_label = max(all_labels)
-    if max_label >= num_classes:
-        print(f"[ERREUR] Label invalide détecté : {max_label} >= {num_classes}")
 
     if args.checkpoint:
         # ───────────── MODÈLE + OPTIM ─────────────
-        model = ConditionalUNet(input_c=3, base_c=64, cond_dim=128, n_classes=len(train_dataset.classes)).to(device)
+        model = ConditionalUNet(input_c=1, base_c=64, cond_dim=64, n_classes=len(train_dataset.classes)).to(device)
         model.apply(init_weights)
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
@@ -91,7 +85,7 @@ def main():
         
     else:
         # ───────────── MODÈLE + OPTIM ─────────────
-        model = ConditionalUNet(input_c=3, base_c=64, cond_dim=128, n_classes=len(train_dataset.classes)).to(device)
+        model = ConditionalUNet(input_c=1, base_c=64, cond_dim=64, n_classes=len(train_dataset.classes)).to(device)
         model.apply(init_weights)
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
