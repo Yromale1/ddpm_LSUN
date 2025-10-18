@@ -137,7 +137,7 @@ def train_ddpm(model, dataloader, validation_dataloader, optimizer, scheduler, d
                         t = torch.full((n_samples_per_label,), t_inv, device=device, dtype=torch.long)
                         eps_cond = model(x_t, t, y_label)
                         eps_uncond = model(x_t, t, None)
-                        guidance_scale = 0.0
+                        guidance_scale = 1.0
                         eps_theta = eps_uncond + guidance_scale * (eps_cond - eps_uncond)
 
                         beta_t = extract(betas, t, x_t.shape)
