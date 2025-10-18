@@ -22,7 +22,6 @@ def main():
     parser.add_argument("--epochs", type=int, default=200, help="Number of training epochs")
     parser.add_argument("--save_every", type=int, default=10, help="Model checkpoint save interval (in epochs)")
     parser.add_argument("--image_size", type=int, default=28, help="Image size for resizing")
-    parser.add_argument("--data_root", type=str, default="./data/mnist", help="Root directory for MNIST dataset")
 
     args = parser.parse_args()
 
