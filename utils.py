@@ -2,10 +2,15 @@ import torch
 import torch.nn.functional as F
 
 def extract(a, t, x_shape):
-    """ Extract t-indexed coefficients from precomputed arrays. """
+    """
+    Extract t-indexed coefficients from precomputed arrays a (betas, alphas, alpha_bars)
+    and reshape to broadcast with x_t of shape x_shape=[B,C,H,W].
+    """
     a = a.to(t.device)
-    out = a.gather(-1, t)
-    return out.view(-1, 1, 1, 1).expand(x_shape)
+    # t: [B], a: [T]
+    out = a.gather(0, t)           # [B]
+    # reshape pour broadcasting: [B,1,1,1]
+    return out.view(-1, 1, 1, 1)
 
 
 def q_sample(x_0, t, noise, alpha_bars):
