@@ -51,7 +51,6 @@ cd ddpm_MNIST
 ```
 
 ### Install dependencies
-> **Tip:** Use a virtual environment or Conda for better dependency management.
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
