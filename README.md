@@ -10,7 +10,6 @@ The project is organized into two main components:
 
 ## Key Features
 - **Conditional DDPM** built on a U-Net backbone with sinusoidal time embeddings and class conditioning.
-- **Multi-class MNIST dataset loader** (LMDB format).
 - **Checkpoint support** for resuming interrupted training.
 - Runs seamlessly on **GPU** or **CPU** (PyTorch).
 - **Docker-ready** inference application.
