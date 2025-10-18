@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-MODEL_FILE="${MODEL_FILE:-checkpoint_epoch_50.pth}"
+MODEL_FILE="${MODEL_FILE:-checkpoint_epoch_200.pth}"
 MODEL_DIR="models"
 MODEL_PATH="${MODEL_DIR}/${MODEL_FILE}"
 MODEL_URL="https://huggingface.co/Yromale/ddpm/resolve/main/${MODEL_FILE}"

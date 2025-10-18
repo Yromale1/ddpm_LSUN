@@ -4,10 +4,15 @@ import base64
 import torchvision.transforms
 
 def extract(a, t, x_shape):
-    """ Extract t-indexed coefficients from precomputed arrays. """
+    """
+    Extract t-indexed coefficients from precomputed arrays a (betas, alphas, alpha_bars)
+    and reshape to broadcast with x_t of shape x_shape=[B,C,H,W].
+    """
     a = a.to(t.device)
-    out = a.gather(-1, t)
-    return out.view(-1, 1, 1, 1).expand(x_shape)
+    # t: [B], a: [T]
+    out = a.gather(0, t)           # [B]
+    # reshape pour broadcasting: [B,1,1,1]
+    return out.view(-1, 1, 1, 1)
 
 @torch.no_grad()
 def sample_ddpm(model, shape, label, device):
@@ -38,16 +43,11 @@ def sample_ddpm(model, shape, label, device):
 
                    
 def tensor_to_base64_img(tensor):
-    # Suppose tensor shape: (1, 1, 64, 64) ou (1, 3, 64, 64)
-    tensor = tensor.squeeze(0).cpu().clamp(0, 1)  # shape: (C, H, W)
     to_pil = torchvision.transforms.ToPILImage()
-    image = to_pil(tensor)
-    
+    image = to_pil(tensor.clamp(0,1).cpu())
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
-    buffer.seek(0)
-    img_str = base64.b64encode(buffer.read()).decode('utf-8')
-    return img_str
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 def init_weights(m):
     if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.ConvTranspose2d):

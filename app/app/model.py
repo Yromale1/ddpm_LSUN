@@ -114,6 +114,8 @@ class UpBlock(nn.Module):
 
     def forward(self, x, skip, cond):
         x = self.upsample(x)
+        if x.shape[-2:] != skip.shape[-2:]:
+            x = F.interpolate(x, size=skip.shape[-2:], mode='nearest')
         x = torch.cat([x, skip], dim=1)
         x = self.resblock(x, cond)
         x = self.resblock2(x, cond)
@@ -121,7 +123,7 @@ class UpBlock(nn.Module):
         return x
 
 class ConditionalUNet(nn.Module):
-    def __init__(self, input_c=3, base_c=64, cond_dim=128, n_classes=6):
+    def __init__(self, input_c=1, base_c=32, cond_dim=128, n_classes=10):
         super().__init__()
         self.label_embed = nn.Embedding(n_classes, cond_dim)
         self.time_embed = TimeMLP(cond_dim)
@@ -129,22 +131,18 @@ class ConditionalUNet(nn.Module):
         self.init_conv = nn.Conv2d(input_c, base_c, 3, padding=1)
 
         self.down1 = DownBlock(base_c, base_c, cond_dim)         
-        self.down2 = DownBlock(base_c, base_c * 2, cond_dim)    
+        self.down2 = DownBlock(base_c, base_c * 2, cond_dim, use_attention=True)    
         self.down3 = DownBlock(base_c * 2, base_c * 4, cond_dim, use_attention=True) 
-        self.down4 = DownBlock(base_c * 4, base_c * 8, cond_dim, use_attention=True)
-        self.down5 = DownBlock(base_c * 8, base_c * 16, cond_dim)
 
-        self.bottleneck = ResidualBlock(base_c * 16, base_c * 16, cond_dim)
-        self.bottleneck2 = ResidualBlock(base_c * 16, base_c * 16, cond_dim)
-        self.attn_bottleneck = SelfAttention(base_c * 16)
+        self.bottleneck = ResidualBlock(base_c * 4, base_c * 4, cond_dim)
+        self.bottleneck2 = ResidualBlock(base_c * 4, base_c * 4, cond_dim)
+        self.attn_bottleneck = SelfAttention(base_c * 4)
 
-        self.up0 = UpBlock(base_c * 16, base_c * 8, base_c * 8, cond_dim)
-        self.up1 = UpBlock(base_c * 8, base_c * 4, base_c * 4, cond_dim, use_attention=True)
-        self.up2 = UpBlock(base_c * 4, base_c * 2, base_c * 2, cond_dim, use_attention=True)
-        self.up3 = UpBlock(base_c * 2, base_c, base_c, cond_dim)
-        self.up4 = UpBlock(base_c, base_c, base_c, cond_dim)
+        self.up0 = UpBlock(base_c * 4, base_c * 2, base_c * 2, cond_dim, use_attention=True)
+        self.up1 = UpBlock(base_c * 2, base_c, base_c, cond_dim, use_attention=True)
+        self.up2 = UpBlock(base_c, base_c, base_c, cond_dim)
 
-        self.final_conv = nn.Conv2d(base_c, input_c, 1)
+        self.final_conv = nn.Conv2d(base_c, 1, 1)
 
     def forward(self, x, t, y):
         t = t.clamp(min=0, max=1000)
@@ -159,17 +157,13 @@ class ConditionalUNet(nn.Module):
         x, skip1 = self.down1(x, cond)
         x, skip2 = self.down2(x, cond)
         x, skip3 = self.down3(x, cond)
-        x, skip4 = self.down4(x, cond)
-        x, skip5 = self.down5(x, cond)
 
         x = self.bottleneck(x, cond)
         x = self.bottleneck2(x, cond)
         x = self.attn_bottleneck(x)
 
-        x = self.up0(x, skip5, cond)
-        x = self.up1(x, skip4, cond)
-        x = self.up2(x, skip3, cond)
-        x = self.up3(x, skip2, cond)
-        x = self.up4(x, skip1, cond)
+        x = self.up0(x, skip3, cond)
+        x = self.up1(x, skip2, cond)
+        x = self.up2(x, skip1, cond)
 
         return self.final_conv(x)
